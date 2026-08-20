@@ -1,0 +1,5 @@
+#include? "SpotifySecrets.xcconfig"
+
+SPOTIFY_CLIENT_ID = $(inherited)
+SPOTIFY_REDIRECT_URI = $(inherited)
+SPOTIFY_URL_SCHEME = $(inherited)
