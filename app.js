@@ -4,7 +4,6 @@ const EXPIRES_AT_KEY = "wakeywakey.spotify.expires_at";
 const CODE_VERIFIER_KEY = "wakeywakey.spotify.code_verifier";
 const LAST_FIRED_DATE_KEY = "wakeywakey.alarm.last_fired";
 const NOTIFICATION_EARLY_PROMPTED_KEY = "wakeywakey.notification.early_prompted";
-const SKIP_FALLBACK_CONFIRM_KEY = "wakeywakey.alarm.skip_fallback_confirm";
 
 const config = window.WAKEY_CONFIG || {};
 const spotifyClientId = config.spotifyClientId || "";
@@ -512,15 +511,11 @@ async function fireAlarm(alarm) {
     }
   }
 
-  if (localStorage.getItem(SKIP_FALLBACK_CONFIRM_KEY) === "1") {
-    window.open(link, "_blank", "noopener");
-    return;
-  }
-
-  const shouldOpen = window.confirm(`${alarm.label}\nOpen Spotify now?`);
-  if (shouldOpen) {
-    localStorage.setItem(SKIP_FALLBACK_CONFIRM_KEY, "1");
-    window.open(link, "_blank", "noopener");
+  // Fallback path for platforms where Notification display is unavailable.
+  const popup = window.open(link, "_blank", "noopener");
+  if (!popup) {
+    // If popup is blocked, navigate this tab directly to reduce friction.
+    window.location.href = link;
   }
 }
 
@@ -542,6 +537,14 @@ function updateNotificationStatus() {
   }
 
   notificationStatusEl.textContent = `Permission: ${Notification.permission}`;
+
+  if (Notification.permission === "granted") {
+    notificationBtn.disabled = true;
+    notificationBtn.textContent = "Notifications Enabled";
+  } else {
+    notificationBtn.disabled = false;
+    notificationBtn.textContent = "Enable Notifications";
+  }
 }
 
 async function requestNotificationPermission() {
