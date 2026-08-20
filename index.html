@@ -108,6 +108,23 @@
       </section>
     </main>
 
+    <div id="setup-modal" class="setup-modal hidden" role="dialog" aria-modal="true" aria-labelledby="setup-title">
+      <div class="setup-panel">
+        <h2 id="setup-title">First-Time Setup</h2>
+        <p class="hint">Grant the required permissions now so alarms work without mid-flow prompts.</p>
+        <ul class="setup-checklist">
+          <li id="setup-notification-status">Notifications: pending</li>
+          <li id="setup-spotify-status">Spotify connection: pending</li>
+        </ul>
+        <div class="row">
+          <button id="setup-notification-btn" class="btn" type="button">Allow Notifications</button>
+          <button id="setup-spotify-btn" class="btn btn-ghost" type="button">Connect Spotify</button>
+        </div>
+        <button id="setup-done-btn" class="btn" type="button" disabled>Finish Setup</button>
+        <p class="hint">If Spotify login redirects you away, return to this app and tap Finish Setup.</p>
+      </div>
+    </div>
+
     <script src="config.public.js"></script>
     <script src="config.js"></script>
     <script type="module" src="app.js"></script>

@@ -4,6 +4,8 @@ const EXPIRES_AT_KEY = "wakeywakey.spotify.expires_at";
 const CODE_VERIFIER_KEY = "wakeywakey.spotify.code_verifier";
 const LAST_FIRED_DATE_KEY = "wakeywakey.alarm.last_fired";
 const NOTIFICATION_EARLY_PROMPTED_KEY = "wakeywakey.notification.early_prompted";
+const SPOTIFY_LOGIN_PRIMED_KEY = "wakeywakey.spotify.login_primed";
+const FIRST_SETUP_DONE_KEY = "wakeywakey.setup.done";
 
 const config = window.WAKEY_CONFIG || {};
 const spotifyClientId = config.spotifyClientId || "";
@@ -28,6 +30,12 @@ const alarmMinuteEl = document.getElementById("alarm-minute");
 const alarmTimezoneEl = document.getElementById("alarm-timezone");
 const alarmRepeatDailyEl = document.getElementById("alarm-repeat-daily");
 const alarmFormStatusEl = document.getElementById("alarm-form-status");
+const setupModalEl = document.getElementById("setup-modal");
+const setupNotificationStatusEl = document.getElementById("setup-notification-status");
+const setupSpotifyStatusEl = document.getElementById("setup-spotify-status");
+const setupNotificationBtn = document.getElementById("setup-notification-btn");
+const setupSpotifyBtn = document.getElementById("setup-spotify-btn");
+const setupDoneBtn = document.getElementById("setup-done-btn");
 
 let alarms = loadAlarms();
 
@@ -78,9 +86,9 @@ async function bootstrap() {
 
   registerServiceWorker();
   handleSpotifyCallback();
-  maybeRequestNotificationPermissionEarly();
   updateSpotifyStatus();
   updateNotificationStatus();
+  initFirstRunSetupFlow();
   renderAlarms();
   startAlarmEngine();
 
@@ -132,6 +140,64 @@ async function bootstrap() {
     alarmForm.reset();
     setDefaultAlarmFormValues();
   });
+}
+
+function initFirstRunSetupFlow() {
+  setupNotificationBtn.addEventListener("click", async () => {
+    await requestNotificationPermission();
+    refreshSetupChecklist();
+  });
+
+  setupSpotifyBtn.addEventListener("click", () => {
+    startSpotifyLogin();
+  });
+
+  setupDoneBtn.addEventListener("click", () => {
+    localStorage.setItem(FIRST_SETUP_DONE_KEY, "1");
+    hideSetupModal();
+  });
+
+  if (localStorage.getItem(FIRST_SETUP_DONE_KEY) !== "1") {
+    showSetupModal();
+  } else {
+    refreshSetupChecklist();
+    if (!isSetupComplete()) {
+      showSetupModal();
+    }
+  }
+}
+
+function isSetupComplete() {
+  const hasNotificationPermission = "Notification" in window && Notification.permission === "granted";
+  const token = localStorage.getItem(TOKEN_KEY);
+  const expiresAt = Number(localStorage.getItem(EXPIRES_AT_KEY) || 0);
+  const hasSpotifyToken = !!token && Date.now() < expiresAt;
+  return hasNotificationPermission && hasSpotifyToken;
+}
+
+function refreshSetupChecklist() {
+  const hasNotificationPermission = "Notification" in window && Notification.permission === "granted";
+  const token = localStorage.getItem(TOKEN_KEY);
+  const expiresAt = Number(localStorage.getItem(EXPIRES_AT_KEY) || 0);
+  const hasSpotifyToken = !!token && Date.now() < expiresAt;
+
+  setupNotificationStatusEl.textContent = hasNotificationPermission
+    ? "Notifications: granted"
+    : "Notifications: pending";
+  setupSpotifyStatusEl.textContent = hasSpotifyToken
+    ? "Spotify connection: connected"
+    : "Spotify connection: pending";
+
+  setupDoneBtn.disabled = !(hasNotificationPermission && hasSpotifyToken);
+}
+
+function showSetupModal() {
+  refreshSetupChecklist();
+  setupModalEl.classList.remove("hidden");
+}
+
+function hideSetupModal() {
+  setupModalEl.classList.add("hidden");
 }
 
 function setAlarmFormStatus(message) {
@@ -372,7 +438,7 @@ function renderAlarms() {
     openBtn.className = "btn btn-ghost";
     openBtn.textContent = "Open Spotify";
     openBtn.addEventListener("click", () => {
-      window.open(normalizeSpotifyLink(alarm.track), "_blank", "noopener");
+      openSpotifyPreferred(alarm.track);
     });
 
     const deleteBtn = document.createElement("button");
@@ -419,23 +485,103 @@ function describeAlarmState(alarm) {
   return `Status: repeats daily at ${pad2(alarm.hour)}:${pad2(alarm.minute)}`;
 }
 
-function normalizeSpotifyLink(value) {
-  if (value.startsWith("spotify:track:")) {
-    const trackId = value.replace("spotify:track:", "").trim();
-    return `https://open.spotify.com/track/${encodeURIComponent(trackId)}`;
+function getSpotifyTargets(value) {
+  const input = (value || "").trim();
+
+  if (input.startsWith("spotify:track:")) {
+    const trackId = input.replace("spotify:track:", "").trim();
+    return {
+      appUri: `spotify:track:${trackId}`,
+      webUrl: `https://open.spotify.com/track/${encodeURIComponent(trackId)}`
+    };
   }
-  if (value.startsWith("spotify:album:")) {
-    const albumId = value.replace("spotify:album:", "").trim();
-    return `https://open.spotify.com/album/${encodeURIComponent(albumId)}`;
+
+  if (input.startsWith("spotify:album:")) {
+    const albumId = input.replace("spotify:album:", "").trim();
+    return {
+      appUri: `spotify:album:${albumId}`,
+      webUrl: `https://open.spotify.com/album/${encodeURIComponent(albumId)}`
+    };
   }
-  if (value.startsWith("spotify:playlist:")) {
-    const playlistId = value.replace("spotify:playlist:", "").trim();
-    return `https://open.spotify.com/playlist/${encodeURIComponent(playlistId)}`;
+
+  if (input.startsWith("spotify:playlist:")) {
+    const playlistId = input.replace("spotify:playlist:", "").trim();
+    return {
+      appUri: `spotify:playlist:${playlistId}`,
+      webUrl: `https://open.spotify.com/playlist/${encodeURIComponent(playlistId)}`
+    };
   }
-  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("spotify:")) {
-    return value;
+
+  if (input.startsWith("https://open.spotify.com/") || input.startsWith("http://open.spotify.com/")) {
+    try {
+      const parsed = new URL(input);
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      const type = parts[0];
+      const id = parts[1];
+
+      if (["track", "album", "playlist"].includes(type) && id) {
+        return {
+          appUri: `spotify:${type}:${id}`,
+          webUrl: `https://open.spotify.com/${type}/${encodeURIComponent(id)}`
+        };
+      }
+
+      return { appUri: "spotify://", webUrl: "https://open.spotify.com/" };
+    } catch {
+      return { appUri: "spotify://", webUrl: "https://open.spotify.com/" };
+    }
   }
-  return `https://open.spotify.com/search/${encodeURIComponent(value)}`;
+
+  if (input.startsWith("spotify:")) {
+    return {
+      appUri: input,
+      webUrl: "https://open.spotify.com/"
+    };
+  }
+
+  if (input.startsWith("http://") || input.startsWith("https://")) {
+    return { appUri: "spotify://", webUrl: input };
+  }
+
+  return {
+    appUri: "spotify://",
+    webUrl: `https://open.spotify.com/search/${encodeURIComponent(input)}`
+  };
+}
+
+function openSpotifyPreferred(value) {
+  const { appUri, webUrl } = getSpotifyTargets(value);
+  openUrlPreferringApp(appUri, webUrl);
+}
+
+function openUrlPreferringApp(appUri, webUrl) {
+  if (!appUri) {
+    openWebUrl(webUrl);
+    return;
+  }
+
+  let appOpened = false;
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") {
+      appOpened = true;
+    }
+  };
+
+  document.addEventListener("visibilitychange", onVisibilityChange, { once: true });
+  window.location.href = appUri;
+
+  window.setTimeout(() => {
+    if (!appOpened) {
+      openWebUrl(webUrl);
+    }
+  }, 1100);
+}
+
+function openWebUrl(url) {
+  const popup = window.open(url, "_blank", "noopener");
+  if (!popup) {
+    window.location.href = url;
+  }
 }
 
 function startAlarmEngine() {
@@ -496,14 +642,14 @@ function readLastFiredMap() {
 }
 
 async function fireAlarm(alarm) {
-  const link = normalizeSpotifyLink(alarm.track);
+  const targets = getSpotifyTargets(alarm.track);
 
   if ("Notification" in window && Notification.permission === "granted") {
     const registration = await navigator.serviceWorker.getRegistration();
     if (registration) {
       registration.showNotification(`Wakey Wakey: ${alarm.label}`, {
         body: "Tap to open Spotify",
-        data: { url: link },
+        data: { url: targets.webUrl },
         tag: `alarm-${alarm.id}`,
         renotify: true
       });
@@ -511,12 +657,7 @@ async function fireAlarm(alarm) {
     }
   }
 
-  // Fallback path for platforms where Notification display is unavailable.
-  const popup = window.open(link, "_blank", "noopener");
-  if (!popup) {
-    // If popup is blocked, navigate this tab directly to reduce friction.
-    window.location.href = link;
-  }
+  openSpotifyPreferred(alarm.track);
 }
 
 function registerServiceWorker() {
@@ -556,26 +697,6 @@ async function requestNotificationPermission() {
   updateNotificationStatus();
 }
 
-async function maybeRequestNotificationPermissionEarly() {
-  if (!("Notification" in window)) {
-    return;
-  }
-
-  if (Notification.permission !== "default") {
-    return;
-  }
-
-  if (localStorage.getItem(NOTIFICATION_EARLY_PROMPTED_KEY) === "1") {
-    return;
-  }
-
-  try {
-    await requestNotificationPermission();
-  } catch {
-    // Ignore; user can still enable notifications via the button.
-  }
-}
-
 function updateSpotifyStatus() {
   const token = localStorage.getItem(TOKEN_KEY);
   const expiresAt = Number(localStorage.getItem(EXPIRES_AT_KEY) || 0);
@@ -594,6 +715,7 @@ function spotifyLogout() {
   localStorage.removeItem(EXPIRES_AT_KEY);
   localStorage.removeItem(CODE_VERIFIER_KEY);
   updateSpotifyStatus();
+  refreshSetupChecklist();
 }
 
 async function startSpotifyLogin() {
@@ -601,6 +723,15 @@ async function startSpotifyLogin() {
     alert("Set spotifyClientId in config.public.js first.");
     return;
   }
+
+  if (isLikelyIOS() && localStorage.getItem(SPOTIFY_LOGIN_PRIMED_KEY) !== "1") {
+    localStorage.setItem(SPOTIFY_LOGIN_PRIMED_KEY, "1");
+    spotifyStatusEl.textContent = "Opened Spotify app. Log in there, then return and tap Connect Spotify again.";
+    openUrlPreferringApp("spotify://", "https://open.spotify.com/");
+    return;
+  }
+
+  localStorage.removeItem(SPOTIFY_LOGIN_PRIMED_KEY);
 
   const verifier = generateCodeVerifier();
   const challenge = await generateCodeChallenge(verifier);
@@ -616,6 +747,11 @@ async function startSpotifyLogin() {
   });
 
   window.location.href = `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+function isLikelyIOS() {
+  const ua = navigator.userAgent || "";
+  return /iPhone|iPad|iPod/i.test(ua);
 }
 
 async function handleSpotifyCallback() {
@@ -666,6 +802,7 @@ async function handleSpotifyCallback() {
     localStorage.setItem(TOKEN_KEY, data.access_token);
     localStorage.setItem(EXPIRES_AT_KEY, String(Date.now() + Number(data.expires_in || 0) * 1000));
     spotifyStatusEl.textContent = "Connected (token available)";
+    refreshSetupChecklist();
   } catch (err) {
     spotifyStatusEl.textContent = `Token exchange failed: ${String(err)}`;
   } finally {

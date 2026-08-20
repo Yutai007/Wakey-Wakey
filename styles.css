@@ -286,6 +286,45 @@ option {
   color: #2b0808;
 }
 
+.setup-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 16, 0.78);
+  display: grid;
+  place-items: center;
+  z-index: 999;
+  padding: 16px;
+}
+
+.setup-modal.hidden {
+  display: none;
+}
+
+.setup-panel {
+  width: min(560px, 100%);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  background: #141a2f;
+  padding: 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.setup-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.setup-checklist li {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  padding: 10px;
+}
+
 @media (max-width: 560px) {
   h1 {
     font-size: 1.75rem;
