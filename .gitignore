@@ -45,5 +45,12 @@ Secrets.plist
 # Spotify private app credentials
 WakeyWakey/Config/SpotifySecrets.xcconfig
 
+# PWA local/private config
+config.js
+config.local.js
+*.local.js
+*.secrets.json
+*.private.json
+
 # macOS
 .DS_Store

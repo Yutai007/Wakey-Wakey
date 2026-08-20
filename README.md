@@ -56,8 +56,27 @@ Client ID is public in PKCE apps. Never put client secret in frontend code.
 ## Security for open source
 
 - Keep secrets out of git (no client secret, private keys, or tokens in repo).
-- Treat `config.js` as local config; do not store sensitive values there.
+- Local config files are ignored by git so you can keep machine-specific values out of commits.
 - OAuth access tokens are stored in browser localStorage in this starter.
+
+### Safe file pattern for public repos
+
+Tracked example files (safe to publish):
+
+- `config.example.js`
+- `WakeyWakey/Config/SpotifySecrets.xcconfig.example`
+
+Ignored local files (can contain private values):
+
+- `config.js`
+- `config.local.js`
+- `WakeyWakey/Config/SpotifySecrets.xcconfig`
+
+Typical setup:
+
+1. Copy `config.example.js` to `config.js` and edit locally.
+2. Copy `WakeyWakey/Config/SpotifySecrets.xcconfig.example` to `WakeyWakey/Config/SpotifySecrets.xcconfig` if you use the native iOS prototype.
+3. Never commit `.env`, `.key`, `.pem`, `.p12`, or any private cert/provisioning files.
 
 ## Project layout
 
