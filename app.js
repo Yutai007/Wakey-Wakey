@@ -25,6 +25,7 @@ const notificationStatusEl = document.getElementById("notification-status");
 const alarmHourEl = document.getElementById("alarm-hour");
 const alarmMinuteEl = document.getElementById("alarm-minute");
 const alarmTimezoneEl = document.getElementById("alarm-timezone");
+const alarmRepeatDailyEl = document.getElementById("alarm-repeat-daily");
 const alarmFormStatusEl = document.getElementById("alarm-form-status");
 
 let alarms = loadAlarms();
@@ -148,14 +149,14 @@ function populateTimeSelectors() {
   for (let i = 0; i < 24; i += 1) {
     const option = document.createElement("option");
     option.value = String(i);
-    option.textContent = pad2(i);
+    option.textContent = `${pad2(i)} h`;
     alarmHourEl.appendChild(option);
   }
 
   for (let i = 0; i < 60; i += 1) {
     const option = document.createElement("option");
     option.value = String(i);
-    option.textContent = pad2(i);
+    option.textContent = `${pad2(i)} m`;
     alarmMinuteEl.appendChild(option);
   }
 }
@@ -202,11 +203,11 @@ function setDefaultAlarmFormValues() {
   alarmHourEl.value = String(roundedToNextMinute.getHours());
   alarmMinuteEl.value = String(roundedToNextMinute.getMinutes());
   alarmTimezoneEl.value = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  alarmRepeatDailyEl.checked = false;
 }
 
 function getSelectedRecurrence() {
-  const recurrenceInput = document.querySelector('input[name="alarm-recurrence"]:checked');
-  return recurrenceInput?.value === "daily" ? "daily" : "once";
+  return alarmRepeatDailyEl.checked ? "daily" : "once";
 }
 
 function pad2(value) {

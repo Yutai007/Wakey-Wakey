@@ -43,29 +43,41 @@
         <form id="alarm-form" class="form-grid">
           <label>
             Time
-            <div class="time-grid">
-              <select id="alarm-hour" required aria-label="Hour"></select>
-              <span class="time-separator">:</span>
-              <select id="alarm-minute" required aria-label="Minute"></select>
+            <div class="time-row">
+              <div class="field-compact">
+                <span class="field-mini-label">Hour (0-23)</span>
+                <div class="select-wrap">
+                  <select id="alarm-hour" required aria-label="Hour"></select>
+                </div>
+              </div>
+              <div class="field-compact">
+                <span class="field-mini-label">Minute (0-59)</span>
+                <div class="select-wrap">
+                  <select id="alarm-minute" required aria-label="Minute"></select>
+                </div>
+              </div>
             </div>
           </label>
           <label>
             Time Zone
-            <select id="alarm-timezone" required></select>
+            <div class="select-wrap">
+              <select id="alarm-timezone" required></select>
+            </div>
           </label>
-          <fieldset class="recurrence-fieldset">
-            <legend>Recurrence</legend>
-            <label class="inline-option">
-              <input type="radio" name="alarm-recurrence" value="once" checked />
-              One-time today
-            </label>
-            <label class="inline-option">
-              <input type="radio" name="alarm-recurrence" value="daily" />
-              Every day at this time
-            </label>
-          </fieldset>
+          <div class="recurrence-block">
+            <div class="recurrence-headline">Recurrence</div>
+            <div class="recurrence-row">
+              <span>One-time today</span>
+              <label class="switch" aria-label="Toggle daily recurrence">
+                <input id="alarm-repeat-daily" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+              <span>Every day</span>
+            </div>
+            <p class="hint">Switch on to repeat daily at the selected time.</p>
+          </div>
           <label>
-            Label
+            Alarm Label
             <input type="text" id="alarm-label" placeholder="Wake up" maxlength="60" />
           </label>
           <label>
