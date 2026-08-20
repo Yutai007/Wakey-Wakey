@@ -21,8 +21,8 @@ This is not a native alarm clock replacement on iPhone.
 ## Quick start on Linux
 
 1. Clone the repo.
-2. Copy `config.example.js` to `config.js`.
-3. Fill `spotifyClientId` and `spotifyRedirectUri` in `config.js`.
+2. Set `spotifyClientId` and `spotifyRedirectUri` in `config.public.js` (tracked, used by deployed Pages).
+3. Optional: copy `config.example.js` to `config.js` for local-only overrides.
 4. Start a local static server, for example:
    - `python3 -m http.server 8080`
 5. Open `http://localhost:8080`.
@@ -35,7 +35,7 @@ This is not a native alarm clock replacement on iPhone.
    - Local: `http://localhost:8080/`
    - GitHub Pages: `https://Yutai007.github.io/Wakey-Wakey/`
    - Custom domain example: `https://yutailong.dev/Wakey-Wakey/`
-4. Put your Client ID in `config.js`.
+4. Put your Client ID in `config.public.js` (and optionally override in local `config.js`).
 
 Client ID is public in PKCE apps. Never put client secret in frontend code.
 
@@ -59,12 +59,14 @@ Client ID is public in PKCE apps. Never put client secret in frontend code.
 - Keep secrets out of git (no client secret, private keys, or tokens in repo).
 - Local config files are ignored by git so you can keep machine-specific values out of commits.
 - OAuth access tokens are stored in browser localStorage in this starter.
+- `config.public.js` is expected to be public and safe to publish.
 
 ### Safe file pattern for public repos
 
 Tracked example files (safe to publish):
 
 - `config.example.js`
+- `config.public.js`
 - `WakeyWakey/Config/SpotifySecrets.xcconfig.example`
 
 Ignored local files (can contain private values):
