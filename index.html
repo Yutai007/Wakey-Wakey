@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1020" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Wakey Wakey PWA</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="assets/icons/icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">Spotify Alarm</p>
+        <h1>Wakey Wakey</h1>
+        <p class="subhead">Set alarm-like reminders and jump into your chosen Spotify track.</p>
+      </header>
+
+      <section class="card">
+        <h2>Spotify Login</h2>
+        <p class="hint">Use Spotify OAuth (PKCE). Client ID is public; never store a client secret in frontend code.</p>
+        <div class="row">
+          <button id="spotify-login-btn" class="btn">Connect Spotify</button>
+          <button id="spotify-logout-btn" class="btn btn-ghost">Logout</button>
+        </div>
+        <p id="spotify-status" class="status">Not connected</p>
+      </section>
+
+      <section class="card">
+        <h2>Notifications</h2>
+        <p class="hint">On iPhone, install to Home Screen first for best notification support.</p>
+        <div class="row">
+          <button id="notification-btn" class="btn">Enable Notifications</button>
+        </div>
+        <p id="notification-status" class="status">Permission: unknown</p>
+      </section>
+
+      <section class="card">
+        <h2>New Alarm</h2>
+        <form id="alarm-form" class="form-grid">
+          <label>
+            Time
+            <input type="time" id="alarm-time" required />
+          </label>
+          <label>
+            Label
+            <input type="text" id="alarm-label" placeholder="Wake up" maxlength="60" />
+          </label>
+          <label>
+            Spotify URI or URL
+            <input
+              type="text"
+              id="alarm-track"
+              placeholder="spotify:track:... or https://open.spotify.com/track/..."
+              required
+            />
+          </label>
+          <button class="btn" type="submit">Add Alarm</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>Alarms</h2>
+        <ul id="alarm-list" class="alarm-list"></ul>
+      </section>
+
+      <section class="card note">
+        <h2>Reality Check</h2>
+        <p>
+          PWAs on iOS cannot guarantee exact-time, closed-app alarm behavior like a native alarm app. This app focuses on practical
+          reminders and fast Spotify launch.
+        </p>
+      </section>
+    </main>
+
+    <script src="config.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

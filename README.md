@@ -1,108 +1,73 @@
-# Wakey Wakey
+# Wakey Wakey (PWA)
 
-Wakey Wakey is an open-source iOS alarm app that plays a Spotify track when an alarm goes off.
+Wakey Wakey is a Spotify-focused alarm reminder Progressive Web App that can be hosted on GitHub Pages.
 
-## What this repository includes
+## What this PWA does
 
-- A SwiftUI starter architecture for alarms + Spotify App Remote control
-- Spotify authorization callback handling through URL schemes
-- Alarm scheduling with local notifications
-- Secure credential pattern using ignored xcconfig files and Keychain token storage
+- Installable web app with manifest + service worker
+- Alarm CRUD stored in localStorage
+- Notification permission flow for browsers and iOS Home Screen web app mode
+- Spotify OAuth PKCE login skeleton (no client secret in frontend)
+- One-click GitHub Pages deployment workflow
 
-This repository currently contains app source files and setup templates, so you can quickly wire them into an Xcode iOS project.
+## iOS limitation you should expect
 
-The repository also includes an XcodeGen spec (`project.yml`) for reproducible project generation.
+This is not a native alarm clock replacement on iPhone.
 
-## Important iOS behavior constraints
+- iOS PWAs cannot guarantee exact-time alarm behavior when the app is fully closed.
+- iOS PWAs cannot silently auto-play Spotify in background at alarm time.
+- The practical flow is reminder notification + tap to open Spotify quickly.
 
-iOS does not allow a third-party app to auto-launch and start playback silently at an exact alarm time while fully in the background.
+## Quick start on Linux
 
-Current flow in this starter:
+1. Clone the repo.
+2. Copy `config.example.js` to `config.js`.
+3. Fill `spotifyClientId` and `spotifyRedirectUri` in `config.js`.
+4. Start a local static server, for example:
+   - `python3 -m http.server 8080`
+5. Open `http://localhost:8080`.
 
-1. The app schedules a repeating local notification.
-2. At alarm time, the user taps the notification.
-3. The app opens and sends playback command to Spotify App Remote for the configured track URI.
+## Spotify setup
 
-This is the practical model used by many alarm-like apps that integrate external music platforms.
+1. Create an app at [Spotify Dashboard](https://developer.spotify.com/dashboard/).
+2. Use Authorization Code with PKCE for browser apps.
+3. Add redirect URIs:
+   - Local: `http://localhost:8080/`
+   - GitHub Pages: `https://<username>.github.io/<repo>/`
+4. Put your Client ID in `config.js`.
 
-## Spotify SDK references
+Client ID is public in PKCE apps. Never put client secret in frontend code.
 
-- iOS SDK repository: [spotify/ios-sdk](https://github.com/spotify/ios-sdk)
-- Developer dashboard: [Spotify Dashboard](https://developer.spotify.com/dashboard/)
-- Developer terms: [Spotify Developer Terms](https://developer.spotify.com/terms)
+## Deploy to GitHub Pages
 
-## Setup
+1. Push to `main`.
+2. In repository settings, enable GitHub Pages source as GitHub Actions.
+3. Workflow at `.github/workflows/pages.yml` deploys the site automatically.
 
-### 1) Create a Spotify app
+## iPhone testing steps
 
-1. Go to Spotify Developer Dashboard and create an app.
-2. Copy your Client ID.
-3. Add a redirect URI (example: wakeywakey://spotify-callback).
+1. Deploy to GitHub Pages first (HTTPS required for many web APIs).
+2. Open the Pages URL in Safari.
+3. Share -> Add to Home Screen.
+4. Launch from Home Screen.
+5. Enable notifications in app and iOS settings.
+6. Connect Spotify and add alarms.
 
-### 2) Generate your iOS app target with XcodeGen
+## Security for open source
 
-1. Install XcodeGen on macOS: `brew install xcodegen`
-2. From repository root run: `xcodegen generate`
-3. Open the generated project: `open WakeyWakey.xcodeproj`
+- Keep secrets out of git (no client secret, private keys, or tokens in repo).
+- Treat `config.js` as local config; do not store sensitive values there.
+- OAuth access tokens are stored in browser localStorage in this starter.
 
-The Spotify SDK supports older iOS versions, but this starter currently targets iOS 16+ because it uses modern SwiftUI APIs.
+## Project layout
 
-### 3) Spotify iOS SDK dependency
+- `index.html`: app shell and sections
+- `styles.css`: UI styles
+- `app.js`: alarm logic, notifications, Spotify PKCE skeleton
+- `sw.js`: service worker caching and notification click handling
+- `manifest.webmanifest`: installability metadata
+- `.github/workflows/pages.yml`: GitHub Pages deployment
 
-SpotifyiOS is already declared in `project.yml` as a Swift Package dependency, so Xcode resolves it after project generation.
+## Native iOS prototype status
 
-### 4) Add your private Spotify config
-
-1. Copy WakeyWakey/Config/SpotifySecrets.xcconfig.example to:
-   WakeyWakey/Config/SpotifySecrets.xcconfig
-2. Fill your own values.
-
-This file is ignored by git.
-
-### 5) Info.plist wiring
-
-`WakeyWakey/Resources/Info.plist` already maps these keys from build settings:
-
-- SPOTIFY_CLIENT_ID = $(SPOTIFY_CLIENT_ID)
-- SPOTIFY_REDIRECT_URI = $(SPOTIFY_REDIRECT_URI)
-- SPOTIFY_URL_SCHEME = $(SPOTIFY_URL_SCHEME)
-
-It also preconfigures URL types and adds `spotify` to `LSApplicationQueriesSchemes`.
-
-### 6) Build configuration
-
-`project.yml` already maps Debug/Release to `WakeyWakey/Config/Base.xcconfig`.
-
-`Base.xcconfig` loads `SpotifySecrets.xcconfig` when present.
-
-### 7) Run and connect
-
-1. Install Spotify app on your iPhone and log in.
-2. Build and run Wakey Wakey.
-3. Tap Connect Spotify.
-4. Add an alarm and a Spotify track URI.
-
-## Security notes for open source
-
-- Never commit Client IDs, redirect secrets, or OAuth tokens.
-- Keep SpotifySecrets.xcconfig local only.
-- Access tokens are stored in iOS Keychain, not plain text files.
-- Rotate credentials if accidentally exposed.
-
-## Folder structure
-
-- WakeyWakey/App: app entrypoint and delegate callbacks
-- WakeyWakey/Config: runtime config readers and secret template
-- WakeyWakey/Models: alarm model
-- WakeyWakey/Services/Spotify: auth and App Remote playback client
-- WakeyWakey/Services/Alarm: notification-based alarm scheduling
-- WakeyWakey/ViewModels: alarm list state and persistence
-- WakeyWakey/Views: SwiftUI screens for connect/add/list alarms
-
-## Next improvements
-
-- Alarm repeat days (weekdays/weekends/custom)
-- Better track picker UX from search and previews
-- Premium/account checks and clearer Spotify error handling
-- Background reconnect strategy and richer connection diagnostics
-- Unit tests for alarm persistence and scheduling mapping
+The repository still contains the earlier native iOS prototype under `WakeyWakey/`, but the active no-fee path is the PWA in repository root.
