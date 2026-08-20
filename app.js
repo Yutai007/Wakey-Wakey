@@ -6,7 +6,8 @@ const LAST_FIRED_DATE_KEY = "wakeywakey.alarm.last_fired";
 
 const config = window.WAKEY_CONFIG || {};
 const spotifyClientId = config.spotifyClientId || "";
-const spotifyRedirectUri = config.spotifyRedirectUri || `${window.location.origin}${window.location.pathname}`;
+const currentPageRedirectUri = buildCurrentRedirectUri();
+const spotifyRedirectUri = pickRedirectUri(config.spotifyRedirectUri, currentPageRedirectUri);
 const spotifyScopes = [
   "user-read-private",
   "user-read-email",
@@ -25,6 +26,44 @@ const notificationStatusEl = document.getElementById("notification-status");
 let alarms = loadAlarms();
 
 bootstrap();
+
+function normalizeRedirectUri(uri) {
+  if (!uri) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(uri);
+    parsed.search = "";
+    parsed.hash = "";
+    if (!parsed.pathname.endsWith("/")) {
+      parsed.pathname = `${parsed.pathname}/`;
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function buildCurrentRedirectUri() {
+  const parsed = new URL(window.location.href);
+  parsed.search = "";
+  parsed.hash = "";
+  if (!parsed.pathname.endsWith("/")) {
+    parsed.pathname = `${parsed.pathname}/`;
+  }
+  return parsed.toString();
+}
+
+function pickRedirectUri(configuredUri, fallbackUri) {
+  const normalizedConfigured = normalizeRedirectUri(configuredUri);
+  if (!normalizedConfigured) {
+    return fallbackUri;
+  }
+
+  // Prevent dashboard mismatch when serving from multiple domains/paths.
+  return normalizedConfigured === fallbackUri ? normalizedConfigured : fallbackUri;
+}
 
 async function bootstrap() {
   registerServiceWorker();

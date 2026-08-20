@@ -21,11 +21,13 @@ This is not a native alarm clock replacement on iPhone.
 ## Quick start on Linux
 
 1. Clone the repo.
-2. Set `spotifyClientId` and `spotifyRedirectUri` in `config.public.js` (tracked, used by deployed Pages).
-3. Optional: copy `config.example.js` to `config.js` for local-only overrides.
-4. Start a local static server, for example:
+2. Set `spotifyClientId` in `config.public.js`.
+3. Leave `spotifyRedirectUri` empty to auto-use the current URL.
+4. Optional: set `spotifyRedirectUri` only if you serve from one fixed URL.
+5. Optional: copy `config.example.js` to `config.js` for local-only overrides.
+6. Start a local static server, for example:
    - `python3 -m http.server 8080`
-5. Open `http://localhost:8080`.
+7. Open `http://localhost:8080`.
 
 ## Spotify setup
 
@@ -35,6 +37,7 @@ This is not a native alarm clock replacement on iPhone.
    - Local: `http://localhost:8080/`
    - GitHub Pages: `https://Yutai007.github.io/Wakey-Wakey/`
    - Custom domain example: `https://yutailong.dev/Wakey-Wakey/`
+   - Add every URL you will actually open from browser (exact match, including trailing slash).
 4. Put your Client ID in `config.public.js` (and optionally override in local `config.js`).
 
 Client ID is public in PKCE apps. Never put client secret in frontend code.

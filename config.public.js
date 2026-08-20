@@ -3,5 +3,5 @@
 
 window.WAKEY_CONFIG = {
   spotifyClientId: "44b5f6fdcc604ee6af46a88688d31a3c",
-  spotifyRedirectUri: "https://Yutai007.github.io/Wakey-Wakey/"
+  spotifyRedirectUri: ""
 };
