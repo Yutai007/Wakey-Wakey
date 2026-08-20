@@ -3,6 +3,8 @@ const TOKEN_KEY = "wakeywakey.spotify.token";
 const EXPIRES_AT_KEY = "wakeywakey.spotify.expires_at";
 const CODE_VERIFIER_KEY = "wakeywakey.spotify.code_verifier";
 const LAST_FIRED_DATE_KEY = "wakeywakey.alarm.last_fired";
+const NOTIFICATION_EARLY_PROMPTED_KEY = "wakeywakey.notification.early_prompted";
+const SKIP_FALLBACK_CONFIRM_KEY = "wakeywakey.alarm.skip_fallback_confirm";
 
 const config = window.WAKEY_CONFIG || {};
 const spotifyClientId = config.spotifyClientId || "";
@@ -77,6 +79,7 @@ async function bootstrap() {
 
   registerServiceWorker();
   handleSpotifyCallback();
+  maybeRequestNotificationPermissionEarly();
   updateSpotifyStatus();
   updateNotificationStatus();
   renderAlarms();
@@ -509,8 +512,14 @@ async function fireAlarm(alarm) {
     }
   }
 
+  if (localStorage.getItem(SKIP_FALLBACK_CONFIRM_KEY) === "1") {
+    window.open(link, "_blank", "noopener");
+    return;
+  }
+
   const shouldOpen = window.confirm(`${alarm.label}\nOpen Spotify now?`);
   if (shouldOpen) {
+    localStorage.setItem(SKIP_FALLBACK_CONFIRM_KEY, "1");
     window.open(link, "_blank", "noopener");
   }
 }
@@ -540,7 +549,28 @@ async function requestNotificationPermission() {
     return;
   }
   await Notification.requestPermission();
+  localStorage.setItem(NOTIFICATION_EARLY_PROMPTED_KEY, "1");
   updateNotificationStatus();
+}
+
+async function maybeRequestNotificationPermissionEarly() {
+  if (!("Notification" in window)) {
+    return;
+  }
+
+  if (Notification.permission !== "default") {
+    return;
+  }
+
+  if (localStorage.getItem(NOTIFICATION_EARLY_PROMPTED_KEY) === "1") {
+    return;
+  }
+
+  try {
+    await requestNotificationPermission();
+  } catch {
+    // Ignore; user can still enable notifications via the button.
+  }
 }
 
 function updateSpotifyStatus() {
