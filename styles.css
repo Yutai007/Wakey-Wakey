@@ -123,6 +123,57 @@ input {
   padding: 10px 12px;
 }
 
+select {
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+fieldset {
+  margin: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+legend {
+  font-size: 0.88rem;
+  color: var(--muted);
+  padding: 0 6px;
+}
+
+.time-grid {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.time-separator {
+  color: var(--muted);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.recurrence-fieldset {
+  display: grid;
+  gap: 8px;
+}
+
+.inline-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.inline-option input {
+  margin: 0;
+}
+
 .alarm-list {
   list-style: none;
   margin: 0;

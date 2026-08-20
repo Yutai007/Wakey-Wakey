@@ -43,8 +43,27 @@
         <form id="alarm-form" class="form-grid">
           <label>
             Time
-            <input type="time" id="alarm-time" required />
+            <div class="time-grid">
+              <select id="alarm-hour" required aria-label="Hour"></select>
+              <span class="time-separator">:</span>
+              <select id="alarm-minute" required aria-label="Minute"></select>
+            </div>
           </label>
+          <label>
+            Time Zone
+            <select id="alarm-timezone" required></select>
+          </label>
+          <fieldset class="recurrence-fieldset">
+            <legend>Recurrence</legend>
+            <label class="inline-option">
+              <input type="radio" name="alarm-recurrence" value="once" checked />
+              One-time today
+            </label>
+            <label class="inline-option">
+              <input type="radio" name="alarm-recurrence" value="daily" />
+              Every day at this time
+            </label>
+          </fieldset>
           <label>
             Label
             <input type="text" id="alarm-label" placeholder="Wake up" maxlength="60" />
@@ -58,6 +77,7 @@
               required
             />
           </label>
+          <p id="alarm-form-status" class="status"></p>
           <button class="btn" type="submit">Add Alarm</button>
         </form>
       </section>

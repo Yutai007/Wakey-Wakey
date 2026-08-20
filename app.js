@@ -22,6 +22,10 @@ const spotifyLoginBtn = document.getElementById("spotify-login-btn");
 const spotifyLogoutBtn = document.getElementById("spotify-logout-btn");
 const notificationBtn = document.getElementById("notification-btn");
 const notificationStatusEl = document.getElementById("notification-status");
+const alarmHourEl = document.getElementById("alarm-hour");
+const alarmMinuteEl = document.getElementById("alarm-minute");
+const alarmTimezoneEl = document.getElementById("alarm-timezone");
+const alarmFormStatusEl = document.getElementById("alarm-form-status");
 
 let alarms = loadAlarms();
 
@@ -66,6 +70,10 @@ function pickRedirectUri(configuredUri, fallbackUri) {
 }
 
 async function bootstrap() {
+  populateTimeSelectors();
+  populateTimezoneSelector();
+  setDefaultAlarmFormValues();
+
   registerServiceWorker();
   handleSpotifyCallback();
   updateSpotifyStatus();
@@ -80,17 +88,37 @@ async function bootstrap() {
   alarmForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    const time = document.getElementById("alarm-time").value;
+    const hour = Number(alarmHourEl.value);
+    const minute = Number(alarmMinuteEl.value);
+    const timezone = alarmTimezoneEl.value;
+    const recurrence = getSelectedRecurrence();
     const label = document.getElementById("alarm-label").value.trim() || "Alarm";
     const track = document.getElementById("alarm-track").value.trim();
 
-    if (!time || !track) {
+    if (!Number.isInteger(hour) || !Number.isInteger(minute) || !timezone || !track) {
+      setAlarmFormStatus("Please fill all required fields.");
       return;
     }
 
+    const now = new Date();
+    const zonedNow = getZonedDateParts(now, timezone);
+    const hasTimePassedToday =
+      hour < zonedNow.hour || (hour === zonedNow.hour && minute <= zonedNow.minute);
+
+    if (recurrence === "once" && hasTimePassedToday) {
+      setAlarmFormStatus("One-time today alarm must be set for a future minute in the selected time zone.");
+      return;
+    }
+
+    clearAlarmFormStatus();
+
     alarms.push({
       id: crypto.randomUUID(),
-      time,
+      hour,
+      minute,
+      timezone,
+      recurrence,
+      onceDate: recurrence === "once" ? zonedNow.ymd : null,
       label,
       track,
       enabled: true
@@ -99,16 +127,189 @@ async function bootstrap() {
     saveAlarms();
     renderAlarms();
     alarmForm.reset();
+    setDefaultAlarmFormValues();
   });
+}
+
+function setAlarmFormStatus(message) {
+  alarmFormStatusEl.textContent = message;
+  alarmFormStatusEl.style.color = "#ffb4b4";
+}
+
+function clearAlarmFormStatus() {
+  alarmFormStatusEl.textContent = "";
+  alarmFormStatusEl.style.color = "";
+}
+
+function populateTimeSelectors() {
+  alarmHourEl.innerHTML = "";
+  alarmMinuteEl.innerHTML = "";
+
+  for (let i = 0; i < 24; i += 1) {
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = pad2(i);
+    alarmHourEl.appendChild(option);
+  }
+
+  for (let i = 0; i < 60; i += 1) {
+    const option = document.createElement("option");
+    option.value = String(i);
+    option.textContent = pad2(i);
+    alarmMinuteEl.appendChild(option);
+  }
+}
+
+function populateTimezoneSelector() {
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const zoneSet = new Set([localTimezone, "UTC"]);
+
+  if (typeof Intl.supportedValuesOf === "function") {
+    for (const timezone of Intl.supportedValuesOf("timeZone")) {
+      zoneSet.add(timezone);
+    }
+  } else {
+    ["America/New_York", "America/Los_Angeles", "Europe/London", "Asia/Tokyo", "Asia/Shanghai"].forEach((zone) => {
+      zoneSet.add(zone);
+    });
+  }
+
+  const zones = Array.from(zoneSet);
+  zones.sort((a, b) => a.localeCompare(b));
+
+  alarmTimezoneEl.innerHTML = "";
+
+  const localOption = document.createElement("option");
+  localOption.value = localTimezone;
+  localOption.textContent = `${localTimezone} (local)`;
+  alarmTimezoneEl.appendChild(localOption);
+
+  for (const zone of zones) {
+    if (zone === localTimezone) {
+      continue;
+    }
+
+    const option = document.createElement("option");
+    option.value = zone;
+    option.textContent = zone;
+    alarmTimezoneEl.appendChild(option);
+  }
+}
+
+function setDefaultAlarmFormValues() {
+  const now = new Date();
+  const roundedToNextMinute = new Date(now.getTime() + 60000);
+  alarmHourEl.value = String(roundedToNextMinute.getHours());
+  alarmMinuteEl.value = String(roundedToNextMinute.getMinutes());
+  alarmTimezoneEl.value = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function getSelectedRecurrence() {
+  const recurrenceInput = document.querySelector('input[name="alarm-recurrence"]:checked');
+  return recurrenceInput?.value === "daily" ? "daily" : "once";
+}
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function getZonedDateParts(date, timezone) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+
+  const partMap = {};
+  formatter.formatToParts(date).forEach((part) => {
+    if (part.type !== "literal") {
+      partMap[part.type] = part.value;
+    }
+  });
+
+  const year = Number(partMap.year || 0);
+  const month = Number(partMap.month || 1);
+  const day = Number(partMap.day || 1);
+  const hour = Number(partMap.hour || 0);
+  const minute = Number(partMap.minute || 0);
+
+  return {
+    year,
+    month,
+    day,
+    hour,
+    minute,
+    ymd: `${partMap.year}-${partMap.month}-${partMap.day}`
+  };
 }
 
 function loadAlarms() {
   try {
     const raw = localStorage.getItem(ALARM_KEY);
-    return raw ? JSON.parse(raw) : [];
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.map((alarm) => normalizeAlarm(alarm)).filter((alarm) => alarm !== null)
+      : [];
   } catch {
     return [];
   }
+}
+
+function normalizeAlarm(alarm) {
+  const localTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+  if (typeof alarm !== "object" || alarm === null) {
+    return null;
+  }
+
+  const timezone = typeof alarm.timezone === "string" && alarm.timezone ? alarm.timezone : localTimezone;
+  const recurrence = alarm.recurrence === "once" ? "once" : "daily";
+  const label = typeof alarm.label === "string" && alarm.label ? alarm.label : "Alarm";
+  const track = typeof alarm.track === "string" ? alarm.track : "";
+  const enabled = alarm.enabled !== false;
+
+  if (Number.isInteger(alarm.hour) && Number.isInteger(alarm.minute)) {
+    return {
+      id: typeof alarm.id === "string" ? alarm.id : crypto.randomUUID(),
+      hour: alarm.hour,
+      minute: alarm.minute,
+      timezone,
+      recurrence,
+      onceDate: recurrence === "once" ? alarm.onceDate || getZonedDateParts(new Date(), timezone).ymd : null,
+      label,
+      track,
+      enabled
+    };
+  }
+
+  if (typeof alarm.time === "string" && /^\d{2}:\d{2}$/.test(alarm.time)) {
+    const [hh, mm] = alarm.time.split(":").map((value) => Number(value));
+    if (!Number.isInteger(hh) || !Number.isInteger(mm)) {
+      return null;
+    }
+
+    return {
+      id: typeof alarm.id === "string" ? alarm.id : crypto.randomUUID(),
+      hour: hh,
+      minute: mm,
+      timezone,
+      recurrence: "daily",
+      onceDate: null,
+      label,
+      track,
+      enabled
+    };
+  }
+
+  return null;
 }
 
 function saveAlarms() {
@@ -134,7 +335,7 @@ function renderAlarms() {
     head.className = "alarm-head";
 
     const title = document.createElement("strong");
-    title.textContent = `${alarm.time} - ${alarm.label}`;
+    title.textContent = `${pad2(alarm.hour)}:${pad2(alarm.minute)} - ${alarm.label}`;
 
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
@@ -150,7 +351,16 @@ function renderAlarms() {
 
     const meta = document.createElement("div");
     meta.className = "alarm-meta";
-    meta.textContent = alarm.track;
+    const recurrenceLabel = alarm.recurrence === "daily" ? "Every day" : "One-time today";
+    meta.textContent = `${recurrenceLabel} - ${alarm.timezone}`;
+
+    const trackMeta = document.createElement("div");
+    trackMeta.className = "alarm-meta";
+    trackMeta.textContent = alarm.track;
+
+    const stateMeta = document.createElement("div");
+    stateMeta.className = "alarm-meta";
+    stateMeta.textContent = describeAlarmState(alarm);
 
     const actions = document.createElement("div");
     actions.className = "actions";
@@ -176,9 +386,34 @@ function renderAlarms() {
 
     li.appendChild(head);
     li.appendChild(meta);
+    li.appendChild(trackMeta);
+    li.appendChild(stateMeta);
     li.appendChild(actions);
     alarmListEl.appendChild(li);
   });
+}
+
+function describeAlarmState(alarm) {
+  if (!alarm.enabled) {
+    return "Status: disabled";
+  }
+
+  const now = getZonedDateParts(new Date(), alarm.timezone);
+  const isPastTimeToday = alarm.hour < now.hour || (alarm.hour === now.hour && alarm.minute <= now.minute);
+
+  if (alarm.recurrence === "once") {
+    if (alarm.onceDate !== now.ymd) {
+      return "Status: expired (one-time window passed)";
+    }
+
+    if (isPastTimeToday) {
+      return "Status: waiting for next check or about to expire";
+    }
+
+    return `Status: one-time today at ${pad2(alarm.hour)}:${pad2(alarm.minute)}`;
+  }
+
+  return `Status: repeats daily at ${pad2(alarm.hour)}:${pad2(alarm.minute)}`;
 }
 
 function normalizeSpotifyLink(value) {
@@ -207,26 +442,46 @@ function startAlarmEngine() {
 
 async function checkAndFireAlarms() {
   const now = new Date();
-  const hh = `${now.getHours()}`.padStart(2, "0");
-  const mm = `${now.getMinutes()}`.padStart(2, "0");
-  const today = now.toISOString().slice(0, 10);
 
   const lastFiredByAlarm = readLastFiredMap();
+  let alarmsChanged = false;
 
   for (const alarm of alarms) {
-    if (!alarm.enabled || alarm.time !== `${hh}:${mm}`) {
+    if (!alarm.enabled) {
       continue;
     }
 
-    if (lastFiredByAlarm[alarm.id] === today) {
+    const zonedNow = getZonedDateParts(now, alarm.timezone);
+
+    if (alarm.recurrence === "once" && alarm.onceDate !== zonedNow.ymd) {
+      alarm.enabled = false;
+      alarmsChanged = true;
+      continue;
+    }
+
+    if (alarm.hour !== zonedNow.hour || alarm.minute !== zonedNow.minute) {
+      continue;
+    }
+
+    if (lastFiredByAlarm[alarm.id] === zonedNow.ymd) {
       continue;
     }
 
     await fireAlarm(alarm);
-    lastFiredByAlarm[alarm.id] = today;
+    lastFiredByAlarm[alarm.id] = zonedNow.ymd;
+
+    if (alarm.recurrence === "once") {
+      alarm.enabled = false;
+      alarmsChanged = true;
+    }
   }
 
   localStorage.setItem(LAST_FIRED_DATE_KEY, JSON.stringify(lastFiredByAlarm));
+
+  if (alarmsChanged) {
+    saveAlarms();
+    renderAlarms();
+  }
 }
 
 function readLastFiredMap() {
@@ -309,7 +564,7 @@ function spotifyLogout() {
 
 async function startSpotifyLogin() {
   if (!spotifyClientId) {
-    alert("Set spotifyClientId in config.js first.");
+    alert("Set spotifyClientId in config.public.js first.");
     return;
   }
 
