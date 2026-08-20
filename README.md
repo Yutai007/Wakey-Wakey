@@ -33,7 +33,8 @@ This is not a native alarm clock replacement on iPhone.
 2. Use Authorization Code with PKCE for browser apps.
 3. Add redirect URIs:
    - Local: `http://localhost:8080/`
-   - GitHub Pages: `https://<username>.github.io/<repo>/`
+   - GitHub Pages: `https://Yutai007.github.io/Wakey-Wakey/`
+   - Custom domain example: `https://yutailong.dev/Wakey-Wakey/`
 4. Put your Client ID in `config.js`.
 
 Client ID is public in PKCE apps. Never put client secret in frontend code.

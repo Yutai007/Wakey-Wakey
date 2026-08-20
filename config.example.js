@@ -6,6 +6,8 @@ window.WAKEY_CONFIG = {
   spotifyClientId: "",
 
   // For GitHub Pages this should look like:
-  // https://<username>.github.io/<repo>/
+  // https://Yutai007.github.io/Wakey-Wakey/
+  // Or your custom domain path, for example:
+  // https://yutailong.dev/Wakey-Wakey/
   spotifyRedirectUri: ""
 };
