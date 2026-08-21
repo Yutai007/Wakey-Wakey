@@ -44,6 +44,7 @@ const setupDoneBtn = document.getElementById("setup-done-btn");
 
 let alarms = loadAlarms();
 let selectedTrackInfo = null;
+let spotifyLaunchInProgress = false;
 
 bootstrap();
 
@@ -103,7 +104,7 @@ async function bootstrap() {
   spotifyLogoutBtn.addEventListener("click", spotifyLogout);
   notificationBtn.addEventListener("click", requestNotificationPermission);
 
-  alarmForm.addEventListener("submit", (event) => {
+  alarmForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const hour = Number(alarmHourEl.value);
@@ -128,6 +129,12 @@ async function bootstrap() {
       return;
     }
 
+    let trackInfo = selectedTrackInfo;
+    if (!trackInfo) {
+      setAlarmFormStatus("Fetching song metadata...");
+      trackInfo = await fetchTrackMetadataForInput(track);
+    }
+
     clearAlarmFormStatus();
 
     alarms.push({
@@ -139,8 +146,8 @@ async function bootstrap() {
       onceDate: recurrence === "once" ? zonedNow.ymd : null,
       label,
       track,
-      trackName: selectedTrackInfo?.name || null,
-      trackArtists: selectedTrackInfo?.artists || [],
+      trackName: trackInfo?.name || null,
+      trackArtists: trackInfo?.artists || [],
       enabled: true
     });
 
@@ -178,6 +185,62 @@ function getSpotifyAccessToken() {
     return null;
   }
   return token;
+}
+
+function extractSpotifyTrackId(value) {
+  const input = (value || "").trim();
+
+  if (input.startsWith("spotify:track:")) {
+    const trackId = input.replace("spotify:track:", "").trim();
+    return trackId || null;
+  }
+
+  if (input.startsWith("https://open.spotify.com/") || input.startsWith("http://open.spotify.com/")) {
+    try {
+      const parsed = new URL(input);
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      if (parts[0] === "track" && parts[1]) {
+        return parts[1];
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+async function fetchTrackMetadataForInput(value) {
+  const trackId = extractSpotifyTrackId(value);
+  if (!trackId) {
+    return null;
+  }
+
+  const token = getSpotifyAccessToken();
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`https://api.spotify.com/v1/tracks/${encodeURIComponent(trackId)}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const item = await response.json();
+    return {
+      id: item.id,
+      name: item.name || "Unknown track",
+      artists: (item.artists || []).map((artist) => artist.name)
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function performSpotifySearch() {
@@ -721,12 +784,21 @@ function openSpotifyPreferred(value) {
 }
 
 function openUrlPreferringApp(appUri, webUrl) {
+  if (spotifyLaunchInProgress) {
+    return;
+  }
+
+  spotifyLaunchInProgress = true;
+
   if (!appUri) {
     openWebUrl(webUrl);
+    spotifyLaunchInProgress = false;
     return;
   }
 
   let appOpened = false;
+  let fallbackDone = false;
+
   const onVisibilityChange = () => {
     if (document.visibilityState === "hidden") {
       appOpened = true;
@@ -734,20 +806,24 @@ function openUrlPreferringApp(appUri, webUrl) {
   };
 
   document.addEventListener("visibilitychange", onVisibilityChange, { once: true });
+
+  const fallbackTimer = window.setTimeout(() => {
+    if (!appOpened && !fallbackDone) {
+      fallbackDone = true;
+      openWebUrl(webUrl);
+    }
+  }, 1800);
+
   window.location.href = appUri;
 
   window.setTimeout(() => {
-    if (!appOpened) {
-      openWebUrl(webUrl);
-    }
-  }, 1100);
+    window.clearTimeout(fallbackTimer);
+    spotifyLaunchInProgress = false;
+  }, 2200);
 }
 
 function openWebUrl(url) {
-  const popup = window.open(url, "_blank", "noopener");
-  if (!popup) {
-    window.location.href = url;
-  }
+  window.location.href = url;
 }
 
 function startAlarmEngine() {
