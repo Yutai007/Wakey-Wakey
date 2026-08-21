@@ -655,8 +655,8 @@ function renderAlarms() {
     const openBtn = document.createElement("button");
     openBtn.className = "btn btn-ghost";
     openBtn.textContent = "Open Spotify";
-    openBtn.addEventListener("click", () => {
-      openSpotifyPreferred(alarm.track);
+    openBtn.addEventListener("click", async () => {
+      await playTrackImmediatelyOrOpen(alarm.track);
     });
 
     const deleteBtn = document.createElement("button");
@@ -721,7 +721,9 @@ function getSpotifyTargets(value) {
     const trackId = input.replace("spotify:track:", "").trim();
     return {
       appUri: `spotify:track:${trackId}`,
-      webUrl: `https://open.spotify.com/track/${encodeURIComponent(trackId)}`
+      webUrl: `https://open.spotify.com/track/${encodeURIComponent(trackId)}`,
+      spotifyUri: `spotify:track:${trackId}`,
+      type: "track"
     };
   }
 
@@ -729,7 +731,9 @@ function getSpotifyTargets(value) {
     const albumId = input.replace("spotify:album:", "").trim();
     return {
       appUri: `spotify:album:${albumId}`,
-      webUrl: `https://open.spotify.com/album/${encodeURIComponent(albumId)}`
+      webUrl: `https://open.spotify.com/album/${encodeURIComponent(albumId)}`,
+      spotifyUri: `spotify:album:${albumId}`,
+      type: "album"
     };
   }
 
@@ -737,7 +741,9 @@ function getSpotifyTargets(value) {
     const playlistId = input.replace("spotify:playlist:", "").trim();
     return {
       appUri: `spotify:playlist:${playlistId}`,
-      webUrl: `https://open.spotify.com/playlist/${encodeURIComponent(playlistId)}`
+      webUrl: `https://open.spotify.com/playlist/${encodeURIComponent(playlistId)}`,
+      spotifyUri: `spotify:playlist:${playlistId}`,
+      type: "playlist"
     };
   }
 
@@ -751,36 +757,147 @@ function getSpotifyTargets(value) {
       if (["track", "album", "playlist"].includes(type) && id) {
         return {
           appUri: `spotify:${type}:${id}`,
-          webUrl: `https://open.spotify.com/${type}/${encodeURIComponent(id)}`
+          webUrl: `https://open.spotify.com/${type}/${encodeURIComponent(id)}`,
+          spotifyUri: `spotify:${type}:${id}`,
+          type
         };
       }
 
-      return { appUri: "spotify://", webUrl: "https://open.spotify.com/" };
+      return { appUri: "spotify://", webUrl: "https://open.spotify.com/", spotifyUri: null, type: "unknown" };
     } catch {
-      return { appUri: "spotify://", webUrl: "https://open.spotify.com/" };
+      return { appUri: "spotify://", webUrl: "https://open.spotify.com/", spotifyUri: null, type: "unknown" };
     }
   }
 
   if (input.startsWith("spotify:")) {
     return {
       appUri: input,
-      webUrl: "https://open.spotify.com/"
+      webUrl: "https://open.spotify.com/",
+      spotifyUri: input,
+      type: "unknown"
     };
   }
 
   if (input.startsWith("http://") || input.startsWith("https://")) {
-    return { appUri: "spotify://", webUrl: input };
+    return { appUri: "spotify://", webUrl: input, spotifyUri: null, type: "unknown" };
   }
 
   return {
     appUri: "spotify://",
-    webUrl: `https://open.spotify.com/search/${encodeURIComponent(input)}`
+    webUrl: `https://open.spotify.com/search/${encodeURIComponent(input)}`,
+    spotifyUri: null,
+    type: "search"
   };
 }
 
 function openSpotifyPreferred(value) {
   const { appUri, webUrl } = getSpotifyTargets(value);
   openUrlPreferringApp(appUri, webUrl);
+}
+
+async function playTrackImmediatelyOrOpen(value) {
+  const targets = getSpotifyTargets(value);
+  const played = await tryStartPlaybackViaApi(targets);
+
+  if (played) {
+    // Bring Spotify app to foreground after playback starts.
+    openUrlPreferringApp("spotify://", targets.webUrl);
+    return;
+  }
+
+  openUrlPreferringApp(targets.appUri, targets.webUrl);
+}
+
+async function tryStartPlaybackViaApi(targets) {
+  const token = getSpotifyAccessToken();
+  if (!token || !targets.spotifyUri) {
+    return false;
+  }
+
+  const body = targets.type === "track"
+    ? { uris: [targets.spotifyUri] }
+    : { context_uri: targets.spotifyUri };
+
+  const direct = await callSpotifyPlay(token, body);
+  if (direct) {
+    return true;
+  }
+
+  const deviceId = await pickSpotifyDevice(token);
+  if (!deviceId) {
+    return false;
+  }
+
+  const transferred = await transferPlaybackToDevice(token, deviceId);
+  if (!transferred) {
+    return false;
+  }
+
+  return callSpotifyPlay(token, body, deviceId);
+}
+
+async function callSpotifyPlay(token, body, deviceId = null) {
+  try {
+    const query = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : "";
+    const response = await fetch(`https://api.spotify.com/v1/me/player/play${query}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+
+    return response.status === 204;
+  } catch {
+    return false;
+  }
+}
+
+async function pickSpotifyDevice(token) {
+  try {
+    const response = await fetch("https://api.spotify.com/v1/me/player/devices", {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    const devices = data?.devices || [];
+    const active = devices.find((device) => device.is_active && !device.is_restricted);
+    if (active) {
+      return active.id;
+    }
+
+    const candidate = devices.find((device) => !device.is_restricted);
+    return candidate?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function transferPlaybackToDevice(token, deviceId) {
+  try {
+    const response = await fetch("https://api.spotify.com/v1/me/player", {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        device_ids: [deviceId],
+        play: false
+      })
+    });
+
+    return response.status === 204;
+  } catch {
+    return false;
+  }
 }
 
 function openUrlPreferringApp(appUri, webUrl) {
@@ -885,12 +1002,13 @@ function readLastFiredMap() {
 
 async function fireAlarm(alarm) {
   const targets = getSpotifyTargets(alarm.track);
+  const played = await tryStartPlaybackViaApi(targets);
 
   if ("Notification" in window && Notification.permission === "granted") {
     const registration = await navigator.serviceWorker.getRegistration();
     if (registration) {
       registration.showNotification(`Wakey Wakey: ${alarm.label}`, {
-        body: "Tap to open Spotify",
+        body: played ? "Playback started. Tap to open Spotify." : "Tap to open Spotify",
         data: { url: targets.webUrl },
         tag: `alarm-${alarm.id}`,
         renotify: true
@@ -899,7 +1017,12 @@ async function fireAlarm(alarm) {
     }
   }
 
-  openSpotifyPreferred(alarm.track);
+  if (played) {
+    openUrlPreferringApp("spotify://", targets.webUrl);
+    return;
+  }
+
+  openUrlPreferringApp(targets.appUri, targets.webUrl);
 }
 
 function registerServiceWorker() {
