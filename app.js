@@ -43,6 +43,7 @@ const setupSpotifyBtn = document.getElementById("setup-spotify-btn");
 const setupDoneBtn = document.getElementById("setup-done-btn");
 
 let alarms = loadAlarms();
+let selectedTrackInfo = null;
 
 bootstrap();
 
@@ -138,6 +139,8 @@ async function bootstrap() {
       onceDate: recurrence === "once" ? zonedNow.ymd : null,
       label,
       track,
+      trackName: selectedTrackInfo?.name || null,
+      trackArtists: selectedTrackInfo?.artists || [],
       enabled: true
     });
 
@@ -145,6 +148,9 @@ async function bootstrap() {
     renderAlarms();
     alarmForm.reset();
     setDefaultAlarmFormValues();
+    selectedTrackInfo = null;
+    spotifySearchResultsEl.innerHTML = "";
+    spotifySearchStatusEl.textContent = "";
   });
 }
 
@@ -158,6 +164,10 @@ function initSpotifySearch() {
       event.preventDefault();
       performSpotifySearch();
     }
+  });
+
+  alarmTrackEl.addEventListener("input", () => {
+    selectedTrackInfo = null;
   });
 }
 
@@ -260,11 +270,17 @@ function renderSpotifySearchResults(items) {
     useBtn.textContent = "Use";
     useBtn.addEventListener("click", () => {
       alarmTrackEl.value = `spotify:track:${item.id}`;
+      selectedTrackInfo = {
+        id: item.id,
+        name: item.name || "Unknown track",
+        artists: (item.artists || []).map((artist) => artist.name)
+      };
       const labelInput = document.getElementById("alarm-label");
       if (!labelInput.value.trim()) {
         labelInput.value = item.name || "Alarm";
       }
       spotifySearchStatusEl.textContent = `Selected: ${item.name}`;
+      spotifySearchResultsEl.innerHTML = "";
       clearAlarmFormStatus();
     });
 
@@ -476,6 +492,8 @@ function normalizeAlarm(alarm) {
   const recurrence = alarm.recurrence === "once" ? "once" : "daily";
   const label = typeof alarm.label === "string" && alarm.label ? alarm.label : "Alarm";
   const track = typeof alarm.track === "string" ? alarm.track : "";
+  const trackName = typeof alarm.trackName === "string" && alarm.trackName ? alarm.trackName : null;
+  const trackArtists = Array.isArray(alarm.trackArtists) ? alarm.trackArtists.filter((name) => typeof name === "string") : [];
   const enabled = alarm.enabled !== false;
 
   if (Number.isInteger(alarm.hour) && Number.isInteger(alarm.minute)) {
@@ -488,6 +506,8 @@ function normalizeAlarm(alarm) {
       onceDate: recurrence === "once" ? alarm.onceDate || getZonedDateParts(new Date(), timezone).ymd : null,
       label,
       track,
+      trackName,
+      trackArtists,
       enabled
     };
   }
@@ -507,6 +527,8 @@ function normalizeAlarm(alarm) {
       onceDate: null,
       label,
       track,
+      trackName,
+      trackArtists,
       enabled
     };
   }
@@ -558,7 +580,7 @@ function renderAlarms() {
 
     const trackMeta = document.createElement("div");
     trackMeta.className = "alarm-meta";
-    trackMeta.textContent = alarm.track;
+    trackMeta.textContent = formatTrackLabel(alarm);
 
     const stateMeta = document.createElement("div");
     stateMeta.className = "alarm-meta";
@@ -616,6 +638,17 @@ function describeAlarmState(alarm) {
   }
 
   return `Status: repeats daily at ${pad2(alarm.hour)}:${pad2(alarm.minute)}`;
+}
+
+function formatTrackLabel(alarm) {
+  if (alarm.trackName) {
+    const artists = Array.isArray(alarm.trackArtists) && alarm.trackArtists.length
+      ? alarm.trackArtists.join(", ")
+      : "Unknown artist";
+    return `${alarm.trackName} - ${artists}`;
+  }
+
+  return alarm.track || "No track selected";
 }
 
 function getSpotifyTargets(value) {
