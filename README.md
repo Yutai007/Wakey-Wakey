@@ -48,6 +48,21 @@ Client ID is public in PKCE apps. Never put client secret in frontend code.
 2. In repository settings, enable GitHub Pages source as GitHub Actions.
 3. Workflow at `.github/workflows/pages.yml` deploys the site automatically.
 
+## First-Launch Setup (In-App)
+
+On first open, the app shows a setup modal and asks for required permissions up front.
+
+1. Tap `Allow Notifications` and approve the browser/iOS permission prompt.
+2. Tap `Connect Spotify` and finish Spotify login.
+3. Return to the app if redirected.
+4. Tap `Finish Setup` once both checklist items show ready.
+
+Notes:
+
+- `Finish Setup` stays disabled until both notification permission and Spotify connection are completed.
+- If setup looks stuck after login redirect, reload once and reopen the app.
+- If you revoke permissions later, setup can appear again until requirements are satisfied.
+
 ## iPhone testing steps
 
 1. Deploy to GitHub Pages first (HTTPS required for many web APIs).

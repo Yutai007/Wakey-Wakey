@@ -30,6 +30,11 @@ const alarmMinuteEl = document.getElementById("alarm-minute");
 const alarmTimezoneEl = document.getElementById("alarm-timezone");
 const alarmRepeatDailyEl = document.getElementById("alarm-repeat-daily");
 const alarmFormStatusEl = document.getElementById("alarm-form-status");
+const alarmTrackEl = document.getElementById("alarm-track");
+const spotifySearchInputEl = document.getElementById("spotify-search-input");
+const spotifySearchBtn = document.getElementById("spotify-search-btn");
+const spotifySearchStatusEl = document.getElementById("spotify-search-status");
+const spotifySearchResultsEl = document.getElementById("spotify-search-results");
 const setupModalEl = document.getElementById("setup-modal");
 const setupNotificationStatusEl = document.getElementById("setup-notification-status");
 const setupSpotifyStatusEl = document.getElementById("setup-spotify-status");
@@ -89,6 +94,7 @@ async function bootstrap() {
   updateSpotifyStatus();
   updateNotificationStatus();
   initFirstRunSetupFlow();
+  initSpotifySearch();
   renderAlarms();
   startAlarmEngine();
 
@@ -104,7 +110,7 @@ async function bootstrap() {
     const timezone = alarmTimezoneEl.value;
     const recurrence = getSelectedRecurrence();
     const label = document.getElementById("alarm-label").value.trim() || "Alarm";
-    const track = document.getElementById("alarm-track").value.trim();
+    const track = alarmTrackEl.value.trim();
 
     if (!Number.isInteger(hour) || !Number.isInteger(minute) || !timezone || !track) {
       setAlarmFormStatus("Please fill all required fields.");
@@ -140,6 +146,133 @@ async function bootstrap() {
     alarmForm.reset();
     setDefaultAlarmFormValues();
   });
+}
+
+function initSpotifySearch() {
+  spotifySearchBtn.addEventListener("click", () => {
+    performSpotifySearch();
+  });
+
+  spotifySearchInputEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      performSpotifySearch();
+    }
+  });
+}
+
+function getSpotifyAccessToken() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const expiresAt = Number(localStorage.getItem(EXPIRES_AT_KEY) || 0);
+  if (!token || Date.now() >= expiresAt) {
+    return null;
+  }
+  return token;
+}
+
+async function performSpotifySearch() {
+  const query = spotifySearchInputEl.value.trim();
+  if (!query) {
+    spotifySearchStatusEl.textContent = "Type a track or artist name to search.";
+    spotifySearchResultsEl.innerHTML = "";
+    return;
+  }
+
+  const token = getSpotifyAccessToken();
+  if (!token) {
+    spotifySearchStatusEl.textContent = "Connect Spotify first, then search.";
+    spotifySearchResultsEl.innerHTML = "";
+    return;
+  }
+
+  spotifySearchBtn.disabled = true;
+  spotifySearchStatusEl.textContent = "Searching Spotify...";
+
+  try {
+    const params = new URLSearchParams({
+      q: query,
+      type: "track",
+      limit: "8"
+    });
+
+    const response = await fetch(`https://api.spotify.com/v1/search?${params.toString()}`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (response.status === 401) {
+      spotifySearchStatusEl.textContent = "Spotify session expired. Reconnect Spotify and try again.";
+      spotifySearchResultsEl.innerHTML = "";
+      return;
+    }
+
+    if (!response.ok) {
+      spotifySearchStatusEl.textContent = "Search failed. Please try again.";
+      spotifySearchResultsEl.innerHTML = "";
+      return;
+    }
+
+    const data = await response.json();
+    const items = data?.tracks?.items || [];
+    renderSpotifySearchResults(items);
+    spotifySearchStatusEl.textContent = items.length
+      ? `Found ${items.length} result${items.length === 1 ? "" : "s"}.`
+      : "No songs found for that query.";
+  } catch {
+    spotifySearchStatusEl.textContent = "Network error during search. Please try again.";
+    spotifySearchResultsEl.innerHTML = "";
+  } finally {
+    spotifySearchBtn.disabled = false;
+  }
+}
+
+function renderSpotifySearchResults(items) {
+  spotifySearchResultsEl.innerHTML = "";
+
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = "search-item";
+
+    const cover = document.createElement("img");
+    cover.className = "search-cover";
+    cover.alt = "Album art";
+    cover.src = item?.album?.images?.[2]?.url || item?.album?.images?.[0]?.url || "";
+
+    const main = document.createElement("div");
+    main.className = "search-main";
+
+    const title = document.createElement("div");
+    title.className = "search-title";
+    title.textContent = item.name || "Unknown track";
+
+    const sub = document.createElement("div");
+    sub.className = "search-sub";
+    const artistNames = (item.artists || []).map((artist) => artist.name).join(", ");
+    sub.textContent = artistNames || "Unknown artist";
+
+    main.appendChild(title);
+    main.appendChild(sub);
+
+    const useBtn = document.createElement("button");
+    useBtn.className = "btn btn-ghost";
+    useBtn.type = "button";
+    useBtn.textContent = "Use";
+    useBtn.addEventListener("click", () => {
+      alarmTrackEl.value = `spotify:track:${item.id}`;
+      const labelInput = document.getElementById("alarm-label");
+      if (!labelInput.value.trim()) {
+        labelInput.value = item.name || "Alarm";
+      }
+      spotifySearchStatusEl.textContent = `Selected: ${item.name}`;
+      clearAlarmFormStatus();
+    });
+
+    li.appendChild(cover);
+    li.appendChild(main);
+    li.appendChild(useBtn);
+    spotifySearchResultsEl.appendChild(li);
+  }
 }
 
 function initFirstRunSetupFlow() {
@@ -715,6 +848,8 @@ function spotifyLogout() {
   localStorage.removeItem(EXPIRES_AT_KEY);
   localStorage.removeItem(CODE_VERIFIER_KEY);
   updateSpotifyStatus();
+  spotifySearchStatusEl.textContent = "";
+  spotifySearchResultsEl.innerHTML = "";
   refreshSetupChecklist();
 }
 
